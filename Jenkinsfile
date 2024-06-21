@@ -1,30 +1,38 @@
 pipeline {
     agent any
+
     stages {
-        stage('Checkout') {
+        stage('Clone Repository') {
             steps {
-                git 'https://github.com/tu-usuario/myapp.git'
+                git branch: 'main', url: 'https://github.com/jpmonzon/myapp'
             }
         }
-        stage('Build') {
+        stage('Login to Amazon ECR') {
             steps {
-                sh 'echo "Building the application..."'
-                // Agrega aquí tus comandos de construcción, por ejemplo:
-                // sh 'npm install'
+                withAWS(region: 'us-west-1', credentials: 'ID-AWS') {
+                    script {
+                        sh 'aws ecr get-login-password --region us-west-1 | docker login --username AWS --password-stdin 730335639646.dkr.ecr.us-west-1.amazonaws.com'
+                    }
+                }
             }
         }
-        stage('Test') {
+        stage('Build Docker Image') {
             steps {
-                sh 'echo "Running tests..."'
-                // Agrega aquí tus comandos de pruebas, por ejemplo:
-                // sh 'npm test'
+                script {
+                    sh 'docker build -t myapp .'
+                    sh 'docker tag myapp 730335639646.dkr.ecr.us-west-1.amazonaws.com/myapp:latest'
+                    sh 'docker push 730335639646.dkr.ecr.us-west-1.amazonaws.com/myapp:latest'
+                }
             }
         }
-        stage('Deploy') {
+        stage('Deploy to AWS') {
             steps {
-                sh 'echo "Deploying the application..."'
-                // Agrega aquí tus comandos de despliegue, por ejemplo:
-                // sh 'npm run deploy'
+                withAWS(region: 'us-west-1', credentials: 'ID-AWS') {
+                    script {
+                        sh 'terraform init'
+                        sh 'terraform apply -auto-approve'
+                    }
+                }
             }
         }
     }
